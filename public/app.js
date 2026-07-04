@@ -260,4 +260,7 @@ window.addEventListener("beforeunload", () => {
 });
 
 const sharedRoom = new URLSearchParams(location.search).get("room");
-if (sharedRoom) roomCodeInput.value = sharedRoom;
+if (sharedRoom) {
+  roomCodeInput.value = sharedRoom;
+  joinRoom(sharedRoom);
+}
