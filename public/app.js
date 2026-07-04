@@ -13,6 +13,9 @@ const notice = document.querySelector("#notice");
 const muteButton = document.querySelector("#muteButton");
 const leaveButton = document.querySelector("#leaveButton");
 const remoteAudio = document.querySelector("#remoteAudio");
+const noiseSuppressionToggle = document.querySelector("#noiseSuppressionToggle");
+const sensitivitySlider = document.querySelector("#sensitivitySlider");
+const sensitivityValue = document.querySelector("#sensitivityValue");
 
 const rtcConfig = {
   iceServers: [
@@ -24,6 +27,11 @@ const rtcConfig = {
 let socket;
 let peerConnection;
 let localStream;
+let rawMicStream;
+let audioContext;
+let gateGain;
+let gateAnalyser;
+let gateTimer;
 let roomId;
 let pendingCandidates = [];
 
@@ -62,6 +70,55 @@ async function getMicrophone() {
     },
     video: false
   });
+}
+
+function getGateThreshold() {
+  const strength = Number(sensitivitySlider.value) / 100;
+  return -62 + (strength * 37);
+}
+
+function updateSensitivityLabel() {
+  const value = Number(sensitivitySlider.value);
+  sensitivityValue.value = value < 34 ? "약하게" : value < 68 ? "보통" : "강하게";
+}
+
+async function createFilteredStream(stream) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return stream;
+
+  audioContext = new AudioContextClass();
+  const source = audioContext.createMediaStreamSource(stream);
+  const highPass = audioContext.createBiquadFilter();
+  const lowPass = audioContext.createBiquadFilter();
+  gateAnalyser = audioContext.createAnalyser();
+  gateGain = audioContext.createGain();
+  const destination = audioContext.createMediaStreamDestination();
+
+  highPass.type = "highpass";
+  highPass.frequency.value = 90;
+  lowPass.type = "lowpass";
+  lowPass.frequency.value = 7200;
+  gateAnalyser.fftSize = 512;
+  gateAnalyser.smoothingTimeConstant = 0.35;
+
+  source.connect(highPass).connect(lowPass).connect(gateAnalyser).connect(gateGain).connect(destination);
+  await audioContext.resume().catch(() => {});
+
+  const samples = new Float32Array(gateAnalyser.fftSize);
+  gateTimer = setInterval(() => {
+    if (!gateAnalyser || !gateGain || !audioContext) return;
+    gateAnalyser.getFloatTimeDomainData(samples);
+    let sum = 0;
+    for (const sample of samples) sum += sample * sample;
+    const rms = Math.sqrt(sum / samples.length);
+    const decibels = 20 * Math.log10(Math.max(rms, 0.00001));
+    const shouldOpen = decibels >= getGateThreshold();
+    const now = audioContext.currentTime;
+    gateGain.gain.cancelScheduledValues(now);
+    gateGain.gain.setTargetAtTime(shouldOpen ? 1 : 0, now, shouldOpen ? 0.008 : 0.09);
+  }, 30);
+
+  return destination.stream;
 }
 
 function createPeerConnection() {
@@ -173,7 +230,8 @@ async function joinRoom(code) {
   setNotice("");
   createRoomButton.disabled = true;
   try {
-    localStream = await getMicrophone();
+    rawMicStream = await getMicrophone();
+    localStream = await createFilteredStream(rawMicStream);
   } catch (error) {
     createRoomButton.disabled = false;
     return setNotice(error.name === "NotAllowedError"
@@ -215,7 +273,15 @@ function leaveCall(updateUrl = true) {
   peerConnection?.close();
   peerConnection = null;
   localStream?.getTracks().forEach((track) => track.stop());
+  rawMicStream?.getTracks().forEach((track) => track.stop());
   localStream = null;
+  rawMicStream = null;
+  clearInterval(gateTimer);
+  gateTimer = null;
+  gateAnalyser = null;
+  gateGain = null;
+  audioContext?.close();
+  audioContext = null;
   remoteAudio.srcObject = null;
   pendingCandidates = [];
   roomId = null;
@@ -254,9 +320,29 @@ muteButton.addEventListener("click", () => {
   muteButton.lastElementChild.textContent = muted ? "음소거 해제" : "음소거";
 });
 
+noiseSuppressionToggle.addEventListener("change", async () => {
+  const track = rawMicStream?.getAudioTracks()[0];
+  if (!track) return;
+  try {
+    await track.applyConstraints({
+      echoCancellation: true,
+      noiseSuppression: noiseSuppressionToggle.checked,
+      autoGainControl: noiseSuppressionToggle.checked
+    });
+    setNotice(noiseSuppressionToggle.checked ? "잡음 억제를 켰습니다." : "잡음 억제를 껐습니다.", true);
+  } catch {
+    setNotice("이 브라우저에서는 잡음 억제 설정 변경을 지원하지 않습니다.");
+  }
+});
+
+sensitivitySlider.addEventListener("input", updateSensitivityLabel);
+updateSensitivityLabel();
+document.addEventListener("pointerdown", () => audioContext?.resume(), { passive: true });
+
 leaveButton.addEventListener("click", () => leaveCall());
 window.addEventListener("beforeunload", () => {
   localStream?.getTracks().forEach((track) => track.stop());
+  rawMicStream?.getTracks().forEach((track) => track.stop());
 });
 
 const sharedRoom = new URLSearchParams(location.search).get("room");

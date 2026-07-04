@@ -53,6 +53,25 @@
             <p>방 코드 <strong id="currentRoomCode"></strong></p>
           </div>
 
+          <div class="audio-settings">
+            <div class="setting-heading">
+              <div>
+                <strong>잡음 억제</strong>
+                <span>키보드와 주변 소리를 줄입니다.</span>
+              </div>
+              <label class="switch">
+                <input id="noiseSuppressionToggle" type="checkbox" checked />
+                <span aria-hidden="true"></span>
+              </label>
+            </div>
+            <label class="sensitivity-label" for="sensitivitySlider">
+              마이크 차단 강도
+              <output id="sensitivityValue" for="sensitivitySlider">보통</output>
+            </label>
+            <input id="sensitivitySlider" type="range" min="0" max="100" value="52" />
+            <div class="range-labels"><span>작은 소리도 전달</span><span>딸깍 소리 차단</span></div>
+          </div>
+
           <div class="controls">
             <button id="muteButton" class="control" type="button" aria-pressed="false">
               <span class="control-icon" aria-hidden="true">🎙</span>

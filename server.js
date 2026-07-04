@@ -12,8 +12,16 @@ const rooms = new Map();
 app.disable("x-powered-by");
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/health", (_request, response) => response.json({ ok: true }));
-app.use((_request, response) => {
-  response.sendFile(path.join(__dirname, "public", "index.html"));
+app.use((request, response) => {
+  if (request.method !== "GET") {
+    return response.status(404).json({ error: "요청한 경로를 찾을 수 없습니다." });
+  }
+
+  const roomId = String(request.query.room || "").trim();
+  const redirectPath = /^[a-zA-Z0-9_-]{4,40}$/.test(roomId)
+    ? `/?room=${encodeURIComponent(roomId)}`
+    : "/";
+  response.redirect(302, redirectPath);
 });
 
 function send(socket, message) {
