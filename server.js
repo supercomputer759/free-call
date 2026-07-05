@@ -36,7 +36,7 @@ function leaveRoom(socket) {
   const room = rooms.get(socket.roomId);
   if (room) {
     room.delete(socket);
-    for (const peer of room) send(peer, { type: "peer-left" });
+    for (const peer of room) send(peer, { type: "peer-left", peerId: socket.id });
     if (room.size === 0) rooms.delete(socket.roomId);
   }
 
@@ -68,18 +68,15 @@ wss.on("connection", (socket) => {
 
       leaveRoom(socket);
       const room = rooms.get(roomId) || new Set();
-      if (room.size >= 2) {
-        return send(socket, { type: "room-full", message: "이미 두 명이 통화 중인 방입니다." });
-      }
+      const peers = Array.from(room, (peer) => peer.id);
 
       socket.roomId = roomId;
       room.add(socket);
       rooms.set(roomId, room);
-      send(socket, { type: "joined", peerId: socket.id, waiting: room.size === 1 });
-
-      if (room.size === 2) {
-        for (const peer of room) {
-          if (peer !== socket) send(peer, { type: "peer-joined" });
+      send(socket, { type: "joined", peerId: socket.id, peers });
+      for (const peer of room) {
+        if (peer !== socket) {
+          send(peer, { type: "peer-joined", peerId: socket.id });
         }
       }
       return;
@@ -88,8 +85,9 @@ wss.on("connection", (socket) => {
     if (["offer", "answer", "ice-candidate"].includes(message.type) && socket.roomId) {
       const room = rooms.get(socket.roomId);
       if (!room) return;
-      for (const peer of room) {
-        if (peer !== socket) send(peer, message);
+      const target = Array.from(room).find((peer) => peer.id === message.target);
+      if (target && target !== socket) {
+        send(target, { ...message, from: socket.id, target: undefined });
       }
     }
   });

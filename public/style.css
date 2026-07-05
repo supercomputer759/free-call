@@ -32,7 +32,7 @@ button {
 }
 
 .card {
-  width: min(100%, 460px);
+  width: min(100%, 520px);
   padding: 36px;
   border: 1px solid #242b38;
   border-radius: 28px;
@@ -175,6 +175,16 @@ input:focus { border-color: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.
 h2 { margin: 0; text-align: center; font-size: 24px; }
 .status-text { min-height: 48px; margin: 8px 0 25px; color: #94a3b8; text-align: center; line-height: 1.5; }
 
+.participant-count {
+  width: fit-content;
+  margin: -16px auto 20px;
+  padding: 6px 11px;
+  border-radius: 20px;
+  background: rgba(74, 222, 128, 0.1);
+  color: #86efac;
+  font-size: 12px;
+}
+
 .invite {
   padding: 17px;
   border-radius: 17px;
@@ -253,6 +263,116 @@ h2 { margin: 0; text-align: center; font-size: 24px; }
   color: #4b5563;
   font-size: 10px;
 }
+
+.chat-panel {
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid #293241;
+  border-radius: 17px;
+  background: #0b101b;
+}
+
+.chat-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 15px;
+  border-bottom: 1px solid #202938;
+  font-size: 13px;
+}
+
+.chat-heading input {
+  width: 110px;
+  min-height: 34px;
+  padding: 0 10px;
+  text-align: right;
+  font-size: 12px;
+}
+
+.chat-messages {
+  height: 230px;
+  overflow-y: auto;
+  padding: 14px;
+  scrollbar-color: #374151 transparent;
+}
+
+.empty-chat {
+  margin: 72px 10px 0;
+  color: #4b5563;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.message {
+  width: fit-content;
+  max-width: 86%;
+  margin: 0 0 10px;
+}
+
+.message.mine { margin-left: auto; }
+.message-name { margin: 0 4px 4px; color: #64748b; font-size: 10px; }
+.message.mine .message-name { text-align: right; }
+
+.message-content {
+  overflow: hidden;
+  padding: 9px 11px;
+  border-radius: 5px 14px 14px;
+  background: #222b39;
+  color: #e5e7eb;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.message.mine .message-content {
+  border-radius: 14px 5px 14px 14px;
+  background: #166534;
+}
+
+.message-content img,
+.message-content video {
+  display: block;
+  width: min(100%, 300px);
+  max-height: 260px;
+  border-radius: 9px;
+  object-fit: contain;
+  background: #030712;
+}
+
+.message-content audio { display: block; width: min(260px, 100%); }
+
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 190px;
+}
+
+.file-card span { flex: 1; min-width: 0; }
+.file-card strong, .file-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-card small { margin-top: 2px; color: #94a3b8; font-size: 10px; }
+.file-card a { color: #86efac; font-weight: 800; text-decoration: none; }
+.media-caption { margin-top: 7px; font-size: 11px; }
+
+.chat-form {
+  display: flex;
+  gap: 7px;
+  padding: 10px;
+  border-top: 1px solid #202938;
+}
+
+.chat-form input { min-height: 42px; }
+.attach-button, .send-button {
+  flex: none;
+  min-height: 42px;
+  border-radius: 11px;
+  font-weight: 800;
+}
+
+.attach-button { width: 42px; background: #293241; color: #f8fafc; font-size: 22px; }
+.send-button { padding: 0 14px; background: #4ade80; color: #052e16; }
+.file-status { min-height: 16px; margin: -3px 13px 8px; color: #94a3b8; font-size: 10px; }
 
 .controls {
   display: flex;

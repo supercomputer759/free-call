@@ -4,17 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#111827" />
-    <meta name="description" content="설치 없이 바로 사용하는 가벼운 1:1 음성 채팅" />
-    <title>둘이서 통화</title>
+    <meta name="description" content="설치 없이 바로 사용하는 가벼운 그룹 음성 채팅" />
+    <title>모여서 통화</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <main class="app">
       <section class="card">
         <div class="brand" aria-hidden="true">☎</div>
-        <p class="eyebrow">가벼운 1:1 음성 채팅</p>
-        <h1>둘이서 통화</h1>
-        <p class="description">설치도, 가입도 없이 링크 하나로 바로 통화하세요.</p>
+        <p class="eyebrow">가벼운 그룹 음성 채팅</p>
+        <h1>모여서 통화</h1>
+        <p class="description">설치도, 가입도 없이 링크 하나로 여럿이 통화하세요.</p>
 
         <div id="lobby" class="panel">
           <button id="createRoomButton" class="primary" type="button">새 통화방 만들기</button>
@@ -43,6 +43,7 @@
           </div>
           <h2 id="statusTitle">연결 준비 중</h2>
           <p id="statusText" class="status-text">마이크 사용 권한을 확인하고 있습니다.</p>
+          <p class="participant-count"><strong id="participantCount">1</strong>명 참가 중</p>
 
           <div class="invite">
             <label for="inviteLink">친구에게 이 링크 보내기</label>
@@ -70,12 +71,51 @@
             </label>
             <input id="sensitivitySlider" type="range" min="0" max="100" value="52" />
             <div class="range-labels"><span>작은 소리도 전달</span><span>딸깍 소리 차단</span></div>
+
+            <label class="sensitivity-label" for="micVolumeSlider">
+              마이크 볼륨
+              <output id="micVolumeValue" for="micVolumeSlider">100%</output>
+            </label>
+            <input id="micVolumeSlider" type="range" min="0" max="200" value="100" />
+
+            <label class="sensitivity-label" for="speakerVolumeSlider">
+              스피커 볼륨
+              <output id="speakerVolumeValue" for="speakerVolumeSlider">100%</output>
+            </label>
+            <input id="speakerVolumeSlider" type="range" min="0" max="100" value="100" />
           </div>
+
+          <section class="chat-panel" aria-label="채팅">
+            <div class="chat-heading">
+              <strong>채팅 및 파일</strong>
+              <input id="displayNameInput" maxlength="16" value="나" aria-label="표시 이름" />
+            </div>
+            <div id="chatMessages" class="chat-messages" aria-live="polite">
+              <p id="emptyChat" class="empty-chat">메시지와 파일은 참가자끼리 직접 전송됩니다.</p>
+            </div>
+            <form id="chatForm" class="chat-form">
+              <input id="fileInput" type="file" hidden />
+              <button id="attachButton" class="attach-button" type="button" aria-label="파일 첨부">＋</button>
+              <input
+                id="chatInput"
+                maxlength="1000"
+                placeholder="메시지 입력"
+                autocomplete="off"
+                aria-label="채팅 메시지"
+              />
+              <button class="send-button" type="submit">전송</button>
+            </form>
+            <p id="fileStatus" class="file-status"></p>
+          </section>
 
           <div class="controls">
             <button id="muteButton" class="control" type="button" aria-pressed="false">
               <span class="control-icon" aria-hidden="true">🎙</span>
               <span>음소거</span>
+            </button>
+            <button id="speakerMuteButton" class="control" type="button" aria-pressed="false">
+              <span class="control-icon" aria-hidden="true">🔊</span>
+              <span>스피커 끄기</span>
             </button>
             <button id="leaveButton" class="control danger" type="button">
               <span class="control-icon" aria-hidden="true">☎</span>
@@ -88,7 +128,7 @@
         <p class="privacy">음성은 서버에 저장되지 않습니다.</p>
       </section>
     </main>
-    <audio id="remoteAudio" autoplay></audio>
-    <script src="./app.js" defer></script>
+    <div id="remoteAudios" hidden></div>
+    <script src="./app-v2.js" defer></script>
   </body>
 </html>
