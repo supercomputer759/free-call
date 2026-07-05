@@ -87,6 +87,16 @@ function send(message) {
   }
 }
 
+async function replaceOutgoingAudioTrack(track) {
+  if (!track) return;
+  const replacements = [];
+  for (const { connection } of peers.values()) {
+    const sender = connection.getSenders().find((item) => item.track?.kind === "audio");
+    if (sender) replacements.push(sender.replaceTrack(track));
+  }
+  await Promise.allSettled(replacements);
+}
+
 async function requestWakeLock() {
   if (wakeLockSentinel || !roomId || document.visibilityState !== "visible" || !("wakeLock" in navigator)) return;
   try {
@@ -623,6 +633,8 @@ muteButton.addEventListener("click", () => {
   const track = localStream?.getAudioTracks()[0];
   if (!track) return;
   track.enabled = !track.enabled;
+  const rawTrack = rawMicStream?.getAudioTracks()[0];
+  if (rawTrack) rawTrack.enabled = track.enabled;
   const muted = !track.enabled;
   muteButton.setAttribute("aria-pressed", String(muted));
   muteButton.lastElementChild.textContent = muted ? "음소거 해제" : "음소거";
@@ -687,9 +699,22 @@ document.addEventListener("pointerdown", () => {
 }, { passive: true });
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState !== "visible" || !roomId || intentionalLeave) return;
+  if (!roomId || intentionalLeave) return;
+
+  if (document.visibilityState !== "visible") {
+    const processedTrack = localStream?.getAudioTracks()[0];
+    const rawTrack = rawMicStream?.getAudioTracks()[0];
+    if (rawTrack) {
+      rawTrack.enabled = processedTrack?.enabled ?? true;
+      replaceOutgoingAudioTrack(rawTrack);
+    }
+    return;
+  }
+
   requestWakeLock();
-  audioContext?.resume();
+  audioContext?.resume().then(() => {
+    replaceOutgoingAudioTrack(localStream?.getAudioTracks()[0]);
+  }).catch(() => {});
   for (const { audio } of peers.values()) audio.play().catch(() => {});
 
   if (!socket || socket.readyState === WebSocket.CLOSED) {
