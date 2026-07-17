@@ -43,6 +43,7 @@
           </div>
           <h2 id="statusTitle">연결 준비 중</h2>
           <p id="statusText" class="status-text">마이크 사용 권한을 확인하고 있습니다.</p>
+          <p id="speakingIndicator" class="speaking-indicator">마이크 대기 중</p>
           <p class="participant-count"><strong id="participantCount">1</strong>명 참가 중</p>
 
           <div class="invite">
@@ -82,8 +83,27 @@
               스피커 볼륨
               <output id="speakerVolumeValue" for="speakerVolumeSlider">100%</output>
             </label>
-            <input id="speakerVolumeSlider" type="range" min="0" max="100" value="100" />
+            <input id="speakerVolumeSlider" type="range" min="0" max="200" value="100" />
           </div>
+
+          <section class="share-panel" aria-label="영상 공유">
+            <div class="share-heading">
+              <div>
+                <strong>카메라 / 화면 공유</strong>
+                <span>지원되는 브라우저에서는 영상도 같이 보낼 수 있습니다.</span>
+              </div>
+            </div>
+            <div class="share-controls">
+              <button id="cameraShareButton" class="secondary" type="button">카메라 켜기</button>
+              <button id="screenShareButton" class="secondary" type="button">화면 공유</button>
+            </div>
+            <div id="videoGrid" class="video-grid hidden">
+              <figure id="localVideoCard" class="video-card hidden">
+                <video id="localPreview" autoplay muted playsinline></video>
+                <figcaption id="localVideoLabel">내 영상</figcaption>
+              </figure>
+            </div>
+          </section>
 
           <section class="chat-panel" aria-label="채팅">
             <div class="chat-heading">

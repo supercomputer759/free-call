@@ -9,6 +9,7 @@ const currentRoomCode = document.querySelector("#currentRoomCode");
 const statusOrb = document.querySelector("#statusOrb");
 const statusTitle = document.querySelector("#statusTitle");
 const statusText = document.querySelector("#statusText");
+const speakingIndicator = document.querySelector("#speakingIndicator");
 const participantCount = document.querySelector("#participantCount");
 const notice = document.querySelector("#notice");
 const muteButton = document.querySelector("#muteButton");
@@ -30,6 +31,12 @@ const chatInput = document.querySelector("#chatInput");
 const attachButton = document.querySelector("#attachButton");
 const fileInput = document.querySelector("#fileInput");
 const fileStatus = document.querySelector("#fileStatus");
+const cameraShareButton = document.querySelector("#cameraShareButton");
+const screenShareButton = document.querySelector("#screenShareButton");
+const videoGrid = document.querySelector("#videoGrid");
+const localVideoCard = document.querySelector("#localVideoCard");
+const localPreview = document.querySelector("#localPreview");
+const localVideoLabel = document.querySelector("#localVideoLabel");
 
 const rtcConfig = {
   iceServers: [
@@ -53,9 +60,13 @@ let reconnectAttempts = 0;
 let intentionalLeave = false;
 let sendingFile = false;
 let wakeLockSentinel;
+let localVideoStream;
+let videoShareType = null;
+let localSpeaking = false;
 
-const maxFileSize = 25 * 1024 * 1024;
+const maxFileSize = 100 * 1024 * 1024;
 const fileChunkSize = 16 * 1024;
+const settingsKey = "freeCallSettingsV2";
 
 function makeRoomCode() {
   const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -72,6 +83,46 @@ function setCallStatus(title, text, active = false) {
   statusTitle.textContent = title;
   statusText.textContent = text;
   statusOrb.classList.toggle("waiting", !active);
+}
+
+function readSavedSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(settingsKey) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveSettings() {
+  const settings = {
+    displayName: displayNameInput.value.trim().slice(0, 16),
+    noiseSuppression: noiseSuppressionToggle.checked,
+    sensitivity: sensitivitySlider.value,
+    micVolume: micVolumeSlider.value,
+    speakerVolume: speakerVolumeSlider.value
+  };
+  try {
+    localStorage.setItem(settingsKey, JSON.stringify(settings));
+  } catch {}
+}
+
+function applySavedSettings() {
+  const settings = readSavedSettings();
+  if (typeof settings.displayName === "string" && settings.displayName) displayNameInput.value = settings.displayName;
+  if (typeof settings.noiseSuppression === "boolean") noiseSuppressionToggle.checked = settings.noiseSuppression;
+  if (settings.sensitivity) sensitivitySlider.value = settings.sensitivity;
+  if (settings.micVolume) micVolumeSlider.value = settings.micVolume;
+  if (settings.speakerVolume) speakerVolumeSlider.value = settings.speakerVolume;
+  micVolumeValue.value = `${micVolumeSlider.value}%`;
+  speakerVolumeValue.value = `${speakerVolumeSlider.value}%`;
+}
+
+function setLocalSpeaking(active) {
+  if (localSpeaking === active) return;
+  localSpeaking = active;
+  statusOrb.classList.toggle("speaking", active);
+  speakingIndicator.classList.toggle("active", active);
+  speakingIndicator.textContent = active ? "말하는 중" : "마이크 대기 중";
 }
 
 function updateParticipantCount() {
@@ -178,6 +229,8 @@ async function createFilteredStream(stream) {
     const rms = Math.sqrt(sum / samples.length);
     const decibels = 20 * Math.log10(Math.max(rms, 0.00001));
     const gateOpen = decibels >= getGateThreshold();
+    const micEnabled = rawMicStream?.getAudioTracks()[0]?.enabled !== false;
+    setLocalSpeaking(micEnabled && gateOpen);
     const now = audioContext.currentTime;
     gateGain.gain.cancelScheduledValues(now);
     gateGain.gain.setTargetAtTime(gateOpen ? 1 : 0, now, gateOpen ? 0.008 : 0.09);
@@ -188,7 +241,10 @@ async function createFilteredStream(stream) {
 
 function applySpeakerSettings(audio) {
   audio.muted = speakerMuteButton.getAttribute("aria-pressed") === "true";
-  audio.volume = Number(speakerVolumeSlider.value) / 100;
+  const volume = Number(speakerVolumeSlider.value) / 100;
+  audio.volume = Math.min(volume, 1);
+  const peer = peers.get(audio.dataset.peerId);
+  if (peer?.audioGain) peer.audioGain.gain.value = audio.muted ? 0 : Math.max(volume, 0.001);
 }
 
 function getDisplayName() {
@@ -319,7 +375,7 @@ async function waitForChannelBuffer(channel) {
 
 async function sendFile(file) {
   if (sendingFile) return setNotice("다른 파일을 전송하고 있습니다.");
-  if (file.size > maxFileSize) return setNotice("파일은 최대 25MB까지 전송할 수 있습니다.");
+  if (file.size > maxFileSize) return setNotice("파일은 최대 100MB까지 전송할 수 있습니다.");
 
   const channels = getOpenDataChannels();
   if (channels.length === 0) return setNotice("파일을 받을 참가자가 아직 연결되지 않았습니다.");
@@ -384,11 +440,135 @@ function playJoinSound() {
   }).catch(() => {});
 }
 
+function updateVideoGridVisibility() {
+  const hasVideos = !localVideoCard.classList.contains("hidden") || videoGrid.querySelector(".remote-video-card");
+  videoGrid.classList.toggle("hidden", !hasVideos);
+}
+
+function showLocalVideo(stream, label) {
+  localPreview.srcObject = stream;
+  localVideoLabel.textContent = label;
+  localVideoCard.classList.remove("hidden");
+  updateVideoGridVisibility();
+}
+
+function hideLocalVideo() {
+  localPreview.srcObject = null;
+  localVideoCard.classList.add("hidden");
+  updateVideoGridVisibility();
+}
+
+function createRemoteVideo(peerId, stream) {
+  const old = videoGrid.querySelector(`[data-video-peer="${peerId}"]`);
+  old?.remove();
+
+  const card = document.createElement("figure");
+  const video = document.createElement("video");
+  const caption = document.createElement("figcaption");
+  card.className = "video-card remote-video-card";
+  card.dataset.videoPeer = peerId;
+  video.autoplay = true;
+  video.playsInline = true;
+  video.srcObject = stream;
+  caption.textContent = "친구 영상";
+  card.append(video, caption);
+  videoGrid.append(card);
+  video.play().catch(() => {});
+  updateVideoGridVisibility();
+  return card;
+}
+
+function removeRemoteVideo(peerId) {
+  videoGrid.querySelector(`[data-video-peer="${peerId}"]`)?.remove();
+  updateVideoGridVisibility();
+}
+
+function setupRemoteAudioGraph(peer) {
+  if (!audioContext || peer.audioGain) return;
+  try {
+    peer.audioSource = audioContext.createMediaElementSource(peer.audio);
+    peer.audioGain = audioContext.createGain();
+    peer.audioSource.connect(peer.audioGain).connect(audioContext.destination);
+    applySpeakerSettings(peer.audio);
+  } catch {
+    peer.audioGain = null;
+  }
+}
+
+async function renegotiateAllPeers() {
+  const jobs = [];
+  for (const [peerId, peer] of peers) {
+    jobs.push((async () => {
+      const offer = await peer.connection.createOffer();
+      await peer.connection.setLocalDescription(offer);
+      send({ type: "offer", target: peerId, sdp: peer.connection.localDescription });
+    })());
+  }
+  await Promise.allSettled(jobs);
+}
+
+async function addLocalVideoTrackToPeers(track, stream) {
+  for (const { connection } of peers.values()) {
+    connection.addTrack(track, stream);
+  }
+  await renegotiateAllPeers();
+}
+
+async function stopVideoShare(renegotiate = true) {
+  if (!localVideoStream) return;
+  const tracks = localVideoStream.getVideoTracks();
+  for (const { connection } of peers.values()) {
+    for (const sender of connection.getSenders()) {
+      if (sender.track && tracks.includes(sender.track)) connection.removeTrack(sender);
+    }
+  }
+  localVideoStream.getTracks().forEach((track) => track.stop());
+  localVideoStream = null;
+  videoShareType = null;
+  cameraShareButton.textContent = "카메라 켜기";
+  screenShareButton.textContent = "화면 공유";
+  hideLocalVideo();
+  if (renegotiate) await renegotiateAllPeers();
+}
+
+async function startVideoShare(type) {
+  if (localVideoStream && videoShareType === type) {
+    await stopVideoShare();
+    return;
+  }
+  await stopVideoShare(false);
+
+  try {
+    const stream = type === "screen"
+      ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      : await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    const [track] = stream.getVideoTracks();
+    localVideoStream = stream;
+    videoShareType = type;
+    showLocalVideo(stream, type === "screen" ? "내 화면" : "내 카메라");
+    cameraShareButton.textContent = type === "camera" ? "카메라 끄기" : "카메라 켜기";
+    screenShareButton.textContent = type === "screen" ? "화면 공유 끄기" : "화면 공유";
+    track.addEventListener("ended", () => stopVideoShare());
+    await addLocalVideoTrackToPeers(track, stream);
+    setNotice(type === "screen" ? "화면 공유를 시작했습니다." : "카메라 공유를 시작했습니다.", true);
+  } catch (error) {
+    await stopVideoShare(false);
+    if (error.name === "NotAllowedError") {
+      setNotice("공유 권한이 거부됐습니다.");
+    } else if (type === "screen") {
+      setNotice("이 브라우저/기기에서는 화면 공유를 지원하지 않을 수 있습니다.");
+    } else {
+      setNotice("카메라를 열 수 없습니다. 브라우저 권한을 확인해 주세요.");
+    }
+  }
+}
+
 function removePeer(peerId) {
   const peer = peers.get(peerId);
   if (!peer) return;
   peer.connection.close();
   peer.audio.remove();
+  removeRemoteVideo(peerId);
   peers.delete(peerId);
   updateParticipantCount();
 }
@@ -408,18 +588,30 @@ function createPeerConnection(peerId, createsDataChannel = false) {
   applySpeakerSettings(audio);
   remoteAudios.append(audio);
   peers.set(peerId, peer);
+  setupRemoteAudioGraph(peer);
   updateParticipantCount();
 
   for (const track of localStream.getTracks()) {
     connection.addTrack(track, localStream);
+  }
+  for (const track of localVideoStream?.getTracks() || []) {
+    connection.addTrack(track, localVideoStream);
   }
 
   connection.onicecandidate = ({ candidate }) => {
     if (candidate) send({ type: "ice-candidate", target: peerId, candidate });
   };
 
-  connection.ontrack = ({ streams }) => {
-    [audio.srcObject] = streams;
+  connection.ontrack = ({ track, streams }) => {
+    const [stream] = streams;
+    if (track.kind === "video") {
+      createRemoteVideo(peerId, stream);
+      track.addEventListener("ended", () => removeRemoteVideo(peerId));
+      return;
+    }
+
+    audio.srcObject = stream;
+    setupRemoteAudioGraph(peer);
     audio.play().catch(() => {
       setNotice("소리가 안 들리면 화면을 한 번 눌러주세요.");
     });
@@ -474,7 +666,7 @@ async function handleSignal(message) {
   }
 
   if (message.type === "offer") {
-    const peer = createPeerConnection(message.from);
+    const peer = peers.get(message.from) || createPeerConnection(message.from);
     await peer.connection.setRemoteDescription(message.sdp);
     await addPendingCandidates(peer);
     const answer = await peer.connection.createAnswer();
@@ -587,6 +779,8 @@ function leaveCall(updateUrl = true) {
   socket?.close();
   socket = null;
   clearPeers();
+  stopVideoShare(false);
+  setLocalSpeaking(false);
   localStream?.getTracks().forEach((track) => track.stop());
   rawMicStream?.getTracks().forEach((track) => track.stop());
   localStream = null;
@@ -636,6 +830,7 @@ muteButton.addEventListener("click", () => {
   const rawTrack = rawMicStream?.getAudioTracks()[0];
   if (rawTrack) rawTrack.enabled = track.enabled;
   const muted = !track.enabled;
+  if (muted) setLocalSpeaking(false);
   muteButton.setAttribute("aria-pressed", String(muted));
   muteButton.lastElementChild.textContent = muted ? "음소거 해제" : "음소거";
 });
@@ -649,6 +844,7 @@ speakerMuteButton.addEventListener("click", () => {
 });
 
 noiseSuppressionToggle.addEventListener("change", async () => {
+  saveSettings();
   const track = rawMicStream?.getAudioTracks()[0];
   if (!track) return;
   try {
@@ -668,10 +864,27 @@ micVolumeSlider.addEventListener("input", () => {
   const volume = Number(micVolumeSlider.value);
   micVolumeValue.value = `${volume}%`;
   if (micVolumeGain) micVolumeGain.gain.value = volume / 100;
+  saveSettings();
 });
 speakerVolumeSlider.addEventListener("input", () => {
   speakerVolumeValue.value = `${speakerVolumeSlider.value}%`;
   for (const { audio } of peers.values()) applySpeakerSettings(audio);
+  saveSettings();
+});
+displayNameInput.addEventListener("input", saveSettings);
+sensitivitySlider.addEventListener("change", saveSettings);
+
+cameraShareButton.addEventListener("click", () => {
+  if (!roomId) return setNotice("통화방에 들어간 뒤 카메라를 켤 수 있습니다.");
+  startVideoShare("camera");
+});
+
+screenShareButton.addEventListener("click", () => {
+  if (!roomId) return setNotice("통화방에 들어간 뒤 화면 공유를 켤 수 있습니다.");
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    return setNotice("이 브라우저/기기에서는 화면 공유를 지원하지 않습니다.");
+  }
+  startVideoShare("screen");
 });
 
 chatForm.addEventListener("submit", (event) => {
@@ -692,6 +905,7 @@ fileInput.addEventListener("change", () => {
   if (file) sendFile(file);
 });
 
+applySavedSettings();
 updateSensitivityLabel();
 document.addEventListener("pointerdown", () => {
   audioContext?.resume();
@@ -728,6 +942,7 @@ leaveButton.addEventListener("click", () => leaveCall());
 window.addEventListener("beforeunload", () => {
   intentionalLeave = true;
   releaseWakeLock();
+  localVideoStream?.getTracks().forEach((track) => track.stop());
   localStream?.getTracks().forEach((track) => track.stop());
   rawMicStream?.getTracks().forEach((track) => track.stop());
 });

@@ -166,6 +166,10 @@ input:focus { border-color: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.
 .status-orb span:nth-child(2) { animation-delay: -0.35s; }
 .status-orb span:nth-child(3) { animation-delay: -0.7s; }
 .status-orb.waiting span { animation-play-state: paused; height: 6px; }
+.status-orb.speaking {
+  box-shadow: 0 0 0 8px rgba(74, 222, 128, 0.08), 0 0 34px rgba(74, 222, 128, 0.35);
+}
+.status-orb.speaking span { animation-duration: 0.55s; }
 
 @keyframes voice {
   0%, 100% { height: 12px; }
@@ -183,6 +187,23 @@ h2 { margin: 0; text-align: center; font-size: 24px; }
   background: rgba(74, 222, 128, 0.1);
   color: #86efac;
   font-size: 12px;
+}
+
+.speaking-indicator {
+  width: fit-content;
+  min-height: 26px;
+  margin: -14px auto 20px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.1);
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.speaking-indicator.active {
+  background: rgba(74, 222, 128, 0.14);
+  color: #86efac;
 }
 
 .invite {
@@ -262,6 +283,65 @@ h2 { margin: 0; text-align: center; font-size: 24px; }
   justify-content: space-between;
   color: #4b5563;
   font-size: 10px;
+}
+
+.share-panel {
+  margin-top: 14px;
+  padding: 17px;
+  border: 1px solid #293241;
+  border-radius: 17px;
+  background: rgba(11, 16, 27, 0.7);
+}
+
+.share-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.share-heading strong { display: block; font-size: 14px; }
+.share-heading span { display: block; margin-top: 3px; color: #64748b; font-size: 11px; }
+
+.share-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 13px;
+}
+
+.share-controls .secondary {
+  width: 100%;
+  min-height: 43px;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 13px;
+}
+
+.video-card {
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid #202938;
+  border-radius: 14px;
+  background: #030712;
+}
+
+.video-card video {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  background: #030712;
+  object-fit: contain;
+}
+
+.video-card figcaption {
+  padding: 7px 10px;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .chat-panel {
